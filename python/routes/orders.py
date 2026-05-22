@@ -28,7 +28,29 @@ async def calculate_total(items: List[OrderItem]) -> float:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_order(request: OrderRequest, current_user: dict = Depends(get_current_user)):
-    total = await calculate_total(request.items)
+    valid_ids = [ObjectId(item.productId) for item in request.items if ObjectId.is_valid(item.productId)]
+    products = await products_collection.find({"_id": {"$in": valid_ids}}).to_list(length=len(valid_ids))
+    product_map = {str(p["_id"]): p for p in products}
+
+    for item in request.items:
+        product = product_map.get(item.productId)
+        if not product:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Product {item.productId} not found")
+        if product.get("stock", 0) < item.quantity:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient stock for product {item.productId}: available {product.get('stock', 0)}, requested {item.quantity}",
+            )
+
+    for item in request.items:
+        await products_collection.update_one(
+            {"_id": ObjectId(item.productId)},
+            {"$inc": {"stock": -item.quantity}, "$set": {"updatedAt": datetime.utcnow()}},
+        )
+
+    price_map = {str(p["_id"]): p.get("price", 0) for p in products}
+    total = round(sum(price_map.get(item.productId, 0) * item.quantity for item in request.items), 2)
+
     order_doc = {
         "items": [item.model_dump() for item in request.items],
         "total": total,
