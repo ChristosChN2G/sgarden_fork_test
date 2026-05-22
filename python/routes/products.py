@@ -158,7 +158,7 @@ async def get_product_stats():
         "averagePrice": round(overall.get("averagePrice") or 0, 2),
         "minPrice": overall.get("minPrice", 0),
         "maxPrice": overall.get("maxPrice", 0),
-        "categoryCount": {item["_id"]: item["count"] for item in by_category if item.get("_id")},
+        "categoryCount": {(item["_id"] or "Uncategorized"): item["count"] for item in by_category},
     }
 
 
