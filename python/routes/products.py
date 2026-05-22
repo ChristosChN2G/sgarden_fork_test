@@ -4,6 +4,7 @@ from database import products_collection
 from security.jwt_handler import get_current_user
 from bson import ObjectId
 from datetime import datetime
+from typing import Optional
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -46,6 +47,39 @@ async def get_all_products():
     cursor = products_collection.find()
     async for product in cursor:
         products.append(product_to_response(product))
+    return products
+
+
+@router.get("/search")
+async def search_products(
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    minPrice: Optional[float] = None,
+    maxPrice: Optional[float] = None,
+):
+    query: dict = {}
+
+    if q:
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"description": {"$regex": q, "$options": "i"}},
+        ]
+
+    if category is not None:
+        query["category"] = category
+
+    if minPrice is not None or maxPrice is not None:
+        price_filter: dict = {}
+        if minPrice is not None:
+            price_filter["$gte"] = minPrice
+        if maxPrice is not None:
+            price_filter["$lte"] = maxPrice
+        query["price"] = price_filter
+
+    products = []
+    async for product in products_collection.find(query):
+        products.append(product_to_response(product))
+
     return products
 
 
