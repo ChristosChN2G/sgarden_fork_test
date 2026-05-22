@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi.responses import JSONResponse
 import asyncio
 from models.product import ProductRequest, ProductResponse
 from database import products_collection
@@ -42,6 +43,18 @@ def format_product(product: dict) -> dict:
 
 
 _ALLOWED_SORT_FIELDS = {"name", "price", "category", "stock", "createdAt", "updatedAt"}
+_VALID_CATEGORIES = {"Electronics", "Accessories", "Storage", "Networking"}
+
+
+def _validate_product(request: ProductRequest, is_create: bool = False) -> dict:
+    errors = {}
+    if is_create and not (request.name and request.name.strip()):
+        errors["name"] = "name is required"
+    if request.price is not None and request.price <= 0:
+        errors["price"] = "price must be a positive number"
+    if request.category is not None and request.category not in _VALID_CATEGORIES:
+        errors["category"] = f"category must be one of: {', '.join(sorted(_VALID_CATEGORIES))}"
+    return errors
 
 
 @router.get("")
@@ -157,6 +170,13 @@ async def get_product_by_id(product_id: str):
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_product(request: ProductRequest, current_user: dict = Depends(get_current_user)):
+    errors = _validate_product(request, is_create=True)
+    if errors:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": "Validation failed", "errors": errors},
+        )
+
     product_doc = {
         "name": request.name,
         "description": request.description,
@@ -209,6 +229,13 @@ async def update_product_legacy(product_id: str, request: ProductRequest, curren
 
 @router.put("/{product_id}")
 async def update_product(product_id: str, request: ProductRequest, current_user: dict = Depends(get_current_user)):
+    errors = _validate_product(request, is_create=False)
+    if errors:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": "Validation failed", "errors": errors},
+        )
+
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
