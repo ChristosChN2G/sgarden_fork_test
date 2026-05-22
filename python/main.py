@@ -7,6 +7,7 @@ from config import settings
 from database import init_indexes
 from seed import seed_data
 from routes.alerts import router as alerts_router
+from routes.analytics import router as analytics_router
 from routes.auth import router as auth_router
 from routes.orders import router as orders_router
 from routes.products import router as products_router
@@ -48,6 +49,7 @@ app.add_middleware(
 
 # Routes
 app.include_router(alerts_router)
+app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(orders_router)
 app.include_router(products_router)
