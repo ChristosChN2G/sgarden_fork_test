@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import JSONResponse
 import asyncio
+from pydantic import BaseModel, Field
 from models.product import ProductRequest, ProductResponse
 from database import products_collection
 from security.jwt_handler import get_current_user
@@ -8,7 +9,12 @@ from bson import ObjectId
 from datetime import datetime
 from typing import Optional
 
+
 router = APIRouter(prefix="/api/products", tags=["products"])
+
+
+class StockUpdateRequest(BaseModel):
+    stock: int
 
 # CODE QUALITY ISSUE: unused variable
 service_name = "ProductService"
@@ -165,6 +171,26 @@ async def get_product_by_id(product_id: str):
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
+    return product_to_response(product)
+
+
+@router.patch("/{product_id}/stock")
+async def update_stock(product_id: str, request: StockUpdateRequest, current_user: dict = Depends(get_current_user)):
+    if request.stock < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="stock must be a non-negative number")
+
+    if not ObjectId.is_valid(product_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    result = await products_collection.update_one(
+        {"_id": ObjectId(product_id)},
+        {"$set": {"stock": request.stock, "updatedAt": datetime.utcnow()}},
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    product = await products_collection.find_one({"_id": ObjectId(product_id)})
     return product_to_response(product)
 
 
