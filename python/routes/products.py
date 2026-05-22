@@ -83,6 +83,44 @@ async def search_products(
     return products
 
 
+@router.get("/stats")
+async def get_product_stats():
+    pipeline = [
+        {
+            "$facet": {
+                "overall": [
+                    {
+                        "$group": {
+                            "_id": None,
+                            "totalCount": {"$sum": 1},
+                            "averagePrice": {"$avg": "$price"},
+                            "minPrice": {"$min": "$price"},
+                            "maxPrice": {"$max": "$price"},
+                        }
+                    }
+                ],
+                "byCategory": [
+                    {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+                ],
+            }
+        }
+    ]
+
+    result = await products_collection.aggregate(pipeline).to_list(length=1)
+    data = result[0] if result else {}
+
+    overall = data.get("overall", [{}])[0] if data.get("overall") else {}
+    by_category = data.get("byCategory", [])
+
+    return {
+        "totalCount": overall.get("totalCount", 0),
+        "averagePrice": round(overall.get("averagePrice") or 0, 2),
+        "minPrice": overall.get("minPrice", 0),
+        "maxPrice": overall.get("maxPrice", 0),
+        "categoryCount": {item["_id"]: item["count"] for item in by_category if item.get("_id")},
+    }
+
+
 @router.get("/{product_id}")
 async def get_product_by_id(product_id: str):
     if not ObjectId.is_valid(product_id):
