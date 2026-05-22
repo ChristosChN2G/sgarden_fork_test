@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
+import asyncio
 from models.product import ProductRequest, ProductResponse
 from database import products_collection
 from security.jwt_handler import get_current_user
@@ -40,14 +41,35 @@ def format_product(product: dict) -> dict:
     }
 
 
+_ALLOWED_SORT_FIELDS = {"name", "price", "category", "stock", "createdAt", "updatedAt"}
+
+
 @router.get("")
-async def get_all_products():
-    print("Fetching all products")
-    products = []
+async def get_all_products(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
+    sort: Optional[str] = None,
+    order: str = Query(default="asc", pattern="^(asc|desc)$"),
+):
+    skip = (page - 1) * limit
+    sort_direction = -1 if order == "desc" else 1
+
     cursor = products_collection.find()
-    async for product in cursor:
-        products.append(product_to_response(product))
-    return products
+    if sort and sort in _ALLOWED_SORT_FIELDS:
+        cursor = cursor.sort(sort, sort_direction)
+    cursor = cursor.skip(skip).limit(limit)
+
+    total, product_docs = await asyncio.gather(
+        products_collection.count_documents({}),
+        cursor.to_list(length=limit),
+    )
+
+    return {
+        "data": [product_to_response(p) for p in product_docs],
+        "page": page,
+        "limit": limit,
+        "total": total,
+    }
 
 
 @router.get("/search")
