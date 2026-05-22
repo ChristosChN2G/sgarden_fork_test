@@ -1,12 +1,25 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from database import orders_collection, products_collection
 from security.jwt_handler import get_current_user
 from models.order import OrderRequest, OrderItem
 from bson import ObjectId
 from datetime import datetime
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
+
+_VALID_TRANSITIONS = {
+    "pending":   {"confirmed", "cancelled"},
+    "confirmed": {"shipped"},
+    "shipped":   {"delivered"},
+    "delivered": set(),
+    "cancelled": set(),
+}
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
 
 
 def order_to_response(order: dict) -> dict:
@@ -14,6 +27,7 @@ def order_to_response(order: dict) -> dict:
         "id": str(order["_id"]),
         "items": order.get("items", []),
         "total": order.get("total", 0),
+        "status": order.get("status", "pending"),
         "createdAt": order["createdAt"].isoformat() if order.get("createdAt") else None,
         "updatedAt": order["updatedAt"].isoformat() if order.get("updatedAt") else None,
     }
@@ -54,6 +68,7 @@ async def create_order(request: OrderRequest, current_user: dict = Depends(get_c
     order_doc = {
         "items": [item.model_dump() for item in request.items],
         "total": total,
+        "status": "pending",
         "createdAt": datetime.utcnow(),
         "updatedAt": datetime.utcnow(),
     }
@@ -63,8 +78,12 @@ async def create_order(request: OrderRequest, current_user: dict = Depends(get_c
 
 
 @router.get("")
-async def get_all_orders(current_user: dict = Depends(get_current_user)):
-    orders = await orders_collection.find().to_list(length=None)
+async def get_all_orders(
+    current_user: dict = Depends(get_current_user),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+):
+    query = {"status": status_filter} if status_filter else {}
+    orders = await orders_collection.find(query).to_list(length=None)
     return [order_to_response(o) for o in orders]
 
 
@@ -77,6 +96,33 @@ async def get_order(order_id: str, current_user: dict = Depends(get_current_user
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
+    return order_to_response(order)
+
+
+@router.patch("/{order_id}/status")
+async def update_order_status(order_id: str, request: StatusUpdateRequest, current_user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(order_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    order = await orders_collection.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    current_status = order.get("status", "pending")
+    new_status = request.status
+
+    if new_status not in _VALID_TRANSITIONS.get(current_status, set()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot transition from '{current_status}' to '{new_status}'",
+        )
+
+    await orders_collection.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"status": new_status, "updatedAt": datetime.utcnow()}},
+    )
+
+    order = await orders_collection.find_one({"_id": ObjectId(order_id)})
     return order_to_response(order)
 
 
