@@ -19,30 +19,9 @@ from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-# CODE QUALITY ISSUE: unused variables
-API_VERSION = "v1.0.0"
-DEPRECATED_FIELD = "This field is no longer used"
-_temp_cache = {}
-
 
 def user_to_response(user: dict) -> dict:
     """Convert MongoDB user document to API response."""
-    return {
-        "id": str(user["_id"]),
-        "username": user.get("username"),
-        "email": user.get("email"),
-        "role": user.get("role"),
-        "lastActiveAt": str(user.get("lastActiveAt", "")),
-        "createdAt": str(user.get("createdAt", "")),
-    }
-
-
-def user_to_response_safe(user: dict) -> dict:
-    """Convert a MongoDB user document to API response format.
-
-    CODE QUALITY ISSUE: duplicate of user_to_response — should be removed and
-    callers migrated.
-    """
     return {
         "id": str(user["_id"]),
         "username": user.get("username"),
@@ -69,25 +48,6 @@ async def get_user_profile(user_id: str, _current_user: dict = Depends(get_curre
     print(f"User profile accessed: {user.get('username')}")
 
     return user_to_response(user)
-
-
-@router.get("/details/{user_id}")
-async def get_user_details(user_id: str, _current_user: dict = Depends(get_current_user)):
-    """Return the details of a user by ID (auth required).
-
-    CODE QUALITY ISSUE: duplicate of get_user_profile — should be removed and
-    callers migrated. Raises HTTP 404 if the user does not exist.
-    """
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    user = await users_collection.find_one({"_id": ObjectId(user_id)})
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    print(f"User details accessed: {user.get('username')}")
-
-    return user_to_response_safe(user)
 
 
 @router.get("/search")
@@ -163,6 +123,16 @@ async def hash_data(request: dict):
     return {"hash": sha256_hash, "algorithm": "SHA-256"}
 
 
+_SORT_FIELD_MAP = {
+    "id": "_id",
+    "username": "username",
+    "email": "email",
+    "role": "role",
+    "lastActiveAt": "lastActiveAt",
+    "createdAt": "createdAt",
+}
+
+
 @router.get("/advanced-search")
 async def advanced_search(
     username: str = None,
@@ -173,58 +143,25 @@ async def advanced_search(
 ):
     """Search users by username, email, and/or role with optional sorting.
 
-    All filter parameters are optional and combinable. Matching is case-insensitive
-    substring matching for username and email, and exact match for role.
-
-    CODE QUALITY ISSUE: loads all users into Python memory and filters in
-    application code instead of pushing filters to MongoDB. This will not scale
-    and should be rewritten to build a MongoDB query directly.
+    All filter parameters are optional and combinable. Matching is
+    case-insensitive substring matching for username and email, and exact
+    match for role. Filters are pushed to MongoDB rather than applied in
+    Python.
     """
-    cursor = users_collection.find()
-    all_users = []
-    async for user in cursor:
-        all_users.append(user)
+    query = {}
+    if username is not None:
+        query["username"] = {"$regex": re.escape(username), "$options": "i"}
+    if email is not None:
+        query["email"] = {"$regex": re.escape(email), "$options": "i"}
+    if role is not None:
+        query["role"] = role
 
-    filtered = []
+    cursor = users_collection.find(query)
+    if sort_by and sort_by in _SORT_FIELD_MAP:
+        direction = -1 if order and order.lower() == "desc" else 1
+        cursor = cursor.sort(_SORT_FIELD_MAP[sort_by], direction)
 
-    # CODE QUALITY ISSUE: deeply nested if/else, high cyclomatic complexity
-    for user in all_users:
-        if username is not None:
-            if username.lower() in user.get("username", "").lower():
-                if email is not None:
-                    if email.lower() in user.get("email", "").lower():
-                        if role is not None:
-                            if user.get("role") == role:
-                                filtered.append(user_to_response(user))
-                        else:
-                            filtered.append(user_to_response(user))
-                else:
-                    if role is not None:
-                        if user.get("role") == role:
-                            filtered.append(user_to_response(user))
-                    else:
-                        filtered.append(user_to_response(user))
-        else:
-            if email is not None:
-                if email.lower() in user.get("email", "").lower():
-                    if role is not None:
-                        if user.get("role") == role:
-                            filtered.append(user_to_response(user))
-                    else:
-                        filtered.append(user_to_response(user))
-            else:
-                if role is not None:
-                    if user.get("role") == role:
-                        filtered.append(user_to_response(user))
-                else:
-                    filtered.append(user_to_response(user))
-
-    # Sort results
-    if sort_by:
-        reverse = order and order.lower() == "desc"
-        filtered.sort(key=lambda u: u.get(sort_by, ""), reverse=reverse)
-
-    return filtered
+    return [user_to_response(user) async for user in cursor]
 
 
 @router.delete("/{user_id}")
