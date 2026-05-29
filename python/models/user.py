@@ -3,7 +3,7 @@
 Defines the MongoDB document shape (UserInDB), registration and login request
 bodies, and the auth response shape.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -17,9 +17,9 @@ class UserInDB(BaseModel):
     email: str
     password: str
     role: str = "user"
-    last_active_at: datetime = Field(default_factory=datetime.utcnow)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_active_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class RegisterRequest(BaseModel):

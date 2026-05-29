@@ -4,10 +4,14 @@ Inserts two default users (admin/admin123, user/user1234) and 15 sample
 products when the respective collections are empty. Called automatically
 at application startup via the FastAPI lifespan handler.
 """
-from datetime import datetime
+from datetime import datetime, timezone
+
+import logging
 
 from database import products_collection, users_collection
 from routes.auth import hash_password
+
+logger = logging.getLogger(__name__)
 
 
 SEED_USERS = [
@@ -16,18 +20,18 @@ SEED_USERS = [
         "email": "admin@sgarden.com",
         "password": hash_password("admin123"),
         "role": "admin",
-        "lastActiveAt": datetime.utcnow(),
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "lastActiveAt": datetime.now(timezone.utc),
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc),
     },
     {
         "username": "user",
         "email": "user@sgarden.com",
         "password": hash_password("user1234"),
         "role": "user",
-        "lastActiveAt": datetime.utcnow(),
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "lastActiveAt": datetime.now(timezone.utc),
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc),
     },
 ]
 
@@ -147,14 +151,15 @@ async def seed_data():
         existing = await users_collection.find_one({"username": user_data["username"]})
         if not existing:
             await users_collection.insert_one(user_data.copy())
-            print(f"Seeded user: {user_data['username']}")
+            logger.info("Seeded user: %s", user_data["username"])
 
     # Seed products
     count = await products_collection.count_documents({})
     if count == 0:
         products_to_insert = []
         for p in SEED_PRODUCTS:
-            product = {**p, "createdAt": datetime.utcnow(), "updatedAt": datetime.utcnow()}
+            now = datetime.now(timezone.utc)
+            product = {**p, "createdAt": now, "updatedAt": now}
             products_to_insert.append(product)
         await products_collection.insert_many(products_to_insert)
-        print(f"Seeded {len(products_to_insert)} products")
+        logger.info("Seeded %d products", len(products_to_insert))

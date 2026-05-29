@@ -4,7 +4,7 @@ Provides create_token for issuing signed HS256 JWTs, decode_token for
 validation, and the get_current_user FastAPI dependency for protecting
 route handlers.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
 from fastapi import Depends, HTTPException, status
@@ -30,8 +30,8 @@ def create_token(user_id: str, username: str, role: str) -> str:
         "sub": user_id,
         "username": username,
         "role": role,
-        "iat": datetime.utcnow(),
-        "exp": datetime.utcnow() + timedelta(hours=EXPIRATION_HOURS),
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=EXPIRATION_HOURS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -44,11 +44,11 @@ def decode_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-        )
+        ) from exc
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

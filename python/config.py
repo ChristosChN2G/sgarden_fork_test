@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     port: int = 4000
     server_secret: str = "sgarden-secret-key"
     jwt_expiration_hours: int = 24
+    debug: bool = False
 
     class Config:
         """Pydantic settings configuration — resolves values from ../.env."""

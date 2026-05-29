@@ -5,8 +5,10 @@ and authenticated create/update/delete operations. Input validation is
 centralised in _validate_product.
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+
+import logging
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +20,8 @@ from models.product import ProductRequest
 from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/products", tags=["products"])
+
+logger = logging.getLogger(__name__)
 
 
 class StockUpdateRequest(BaseModel):
@@ -221,7 +225,7 @@ async def update_stock(
 
     result = await products_collection.update_one(
         {"_id": ObjectId(product_id)},
-        {"$set": {"stock": request.stock, "updatedAt": datetime.utcnow()}},
+        {"$set": {"stock": request.stock, "updatedAt": datetime.now(timezone.utc)}},
     )
 
     if result.matched_count == 0:
@@ -252,13 +256,13 @@ async def create_product(request: ProductRequest, _current_user: dict = Depends(
         "category": request.category,
         "price": request.price,
         "stock": request.stock if request.stock is not None else 0,
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc),
     }
 
     result = await products_collection.insert_one(product_doc)
     product_doc["_id"] = result.inserted_id
-    print(f"Created product: {request.name}")
+    logger.info("Product created: %s", request.name)
     return product_to_response(product_doc)
 
 
@@ -299,7 +303,7 @@ async def update_product(
     if not update_fields:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
-    update_fields["updatedAt"] = datetime.utcnow()
+    update_fields["updatedAt"] = datetime.now(timezone.utc)
 
     result = await products_collection.update_one(
         {"_id": ObjectId(product_id)},
