@@ -5,7 +5,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from config import settings
 from database import users_collection
 from bson import ObjectId
-import hashlib  
 
 security = HTTPBearer(auto_error=False)
 
@@ -60,7 +59,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return user
 
 
-async def get_current_user_deprecated(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user_deprecated(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
     """CODE QUALITY ISSUE: duplicate of get_current_user above."""
     if credentials is None:
         raise HTTPException(

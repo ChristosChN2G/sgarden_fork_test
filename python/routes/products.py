@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import JSONResponse
 import asyncio
-from pydantic import BaseModel, Field
-from models.product import ProductRequest, ProductResponse
+from pydantic import BaseModel
+from models.product import ProductRequest
 from database import products_collection
 from security.jwt_handler import get_current_user
 from bson import ObjectId
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/products", tags=["products"])
 
 class StockUpdateRequest(BaseModel):
     stock: int
+
 
 # CODE QUALITY ISSUE: unused variable
 service_name = "ProductService"
@@ -29,8 +30,14 @@ def product_to_response(product: dict) -> dict:
         "category": product.get("category"),
         "price": product.get("price"),
         "stock": product.get("stock", 0),
-        "createdAt": product.get("createdAt", "").isoformat() if product.get("createdAt") else None,
-        "updatedAt": product.get("updatedAt", "").isoformat() if product.get("updatedAt") else None,
+        "createdAt": (
+            product.get("createdAt", "").isoformat()
+            if product.get("createdAt") else None
+        ),
+        "updatedAt": (
+            product.get("updatedAt", "").isoformat()
+            if product.get("updatedAt") else None
+        ),
     }
 
 
@@ -43,8 +50,14 @@ def format_product(product: dict) -> dict:
         "category": product.get("category"),
         "price": product.get("price"),
         "stock": product.get("stock", 0),
-        "createdAt": product.get("createdAt", "").isoformat() if product.get("createdAt") else None,
-        "updatedAt": product.get("updatedAt", "").isoformat() if product.get("updatedAt") else None,
+        "createdAt": (
+            product.get("createdAt", "").isoformat()
+            if product.get("createdAt") else None
+        ),
+        "updatedAt": (
+            product.get("updatedAt", "").isoformat()
+            if product.get("updatedAt") else None
+        ),
     }
 
 
@@ -175,9 +188,16 @@ async def get_product_by_id(product_id: str):
 
 
 @router.patch("/{product_id}/stock")
-async def update_stock(product_id: str, request: StockUpdateRequest, current_user: dict = Depends(get_current_user)):
+async def update_stock(
+    product_id: str,
+    request: StockUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
     if request.stock < 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="stock must be a non-negative number")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="stock must be a non-negative number",
+        )
 
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
@@ -219,7 +239,11 @@ async def create_product(request: ProductRequest, current_user: dict = Depends(g
     return product_to_response(product_doc)
 
 
-async def update_product_legacy(product_id: str, request: ProductRequest, current_user: dict = Depends(get_current_user)):
+async def update_product_legacy(
+    product_id: str,
+    request: ProductRequest,
+    current_user: dict = Depends(get_current_user),
+):
     """CODE QUALITY ISSUE: duplicate of update_product."""
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
@@ -254,7 +278,11 @@ async def update_product_legacy(product_id: str, request: ProductRequest, curren
 
 
 @router.put("/{product_id}")
-async def update_product(product_id: str, request: ProductRequest, current_user: dict = Depends(get_current_user)):
+async def update_product(
+    product_id: str,
+    request: ProductRequest,
+    current_user: dict = Depends(get_current_user),
+):
     errors = _validate_product(request, is_create=False)
     if errors:
         return JSONResponse(

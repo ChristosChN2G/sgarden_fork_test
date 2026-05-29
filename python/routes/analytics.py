@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from database import orders_collection, products_collection
 from security.jwt_handler import get_current_user
 from bson import ObjectId
