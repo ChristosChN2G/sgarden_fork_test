@@ -224,7 +224,7 @@ async def get_product_by_id(product_id: str):
 async def update_stock(
     product_id: str,
     request: StockUpdateRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
     """Update the stock quantity for a product (auth required).
 
@@ -253,7 +253,7 @@ async def update_stock(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_product(request: ProductRequest, current_user: dict = Depends(get_current_user)):
+async def create_product(request: ProductRequest, _current_user: dict = Depends(get_current_user)):
     """Create a new product and return it (auth required).
 
     Validates name (required), price (must be positive), and category (must
@@ -286,7 +286,7 @@ async def create_product(request: ProductRequest, current_user: dict = Depends(g
 async def update_product_legacy(
     product_id: str,
     request: ProductRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
     """Update an existing product's fields (auth required).
 
@@ -329,7 +329,7 @@ async def update_product_legacy(
 async def update_product(
     product_id: str,
     request: ProductRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
     """Update an existing product's fields and return the updated document (auth required).
 
@@ -377,7 +377,7 @@ async def update_product(
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_product(product_id: str, _current_user: dict = Depends(get_current_user)):
     """Permanently delete a product by ID (auth required).
 
     Raises HTTP 404 if the product does not exist.

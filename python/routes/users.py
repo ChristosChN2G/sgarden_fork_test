@@ -47,7 +47,7 @@ def user_to_response_safe(user: dict) -> dict:
 
 
 @router.get("/profile/{user_id}")
-async def get_user_profile(user_id: str, current_user: dict = Depends(get_current_user)):
+async def get_user_profile(user_id: str, _current_user: dict = Depends(get_current_user)):
     """Return the profile of a user by ID (auth required).
 
     SECURITY ISSUE: the response includes the bcrypt password hash via
@@ -66,7 +66,7 @@ async def get_user_profile(user_id: str, current_user: dict = Depends(get_curren
 
 
 @router.get("/details/{user_id}")
-async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
+async def get_user_details(user_id: str, _current_user: dict = Depends(get_current_user)):
     """Return the details of a user by ID (auth required).
 
     CODE QUALITY ISSUE: duplicate of get_user_profile — should be removed and
@@ -227,7 +227,7 @@ async def advanced_search(
 
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_user(user_id: str, _current_user: dict = Depends(get_current_user)):
     """Permanently delete a user by ID (auth required).
 
     SECURITY ISSUE: any authenticated user can delete any other user — there
@@ -246,7 +246,11 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
 
 
 @router.put("/{user_id}/role")
-async def change_role(user_id: str, request: dict, current_user: dict = Depends(get_current_user)):
+async def change_role(
+    user_id: str,
+    request: dict,
+    _current_user: dict = Depends(get_current_user),
+):
     """Update the role of a user (auth required).
 
     SECURITY ISSUE: any authenticated user can escalate any account to admin —

@@ -29,7 +29,7 @@ def _parse_date(date_str: str, end_of_day: bool = False) -> datetime:
 
 @router.get("/sales")
 async def get_sales_analytics(
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
     startDate: Optional[str] = None,
     endDate: Optional[str] = None,
 ):

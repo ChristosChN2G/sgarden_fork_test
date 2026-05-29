@@ -20,7 +20,7 @@ unused_config = {"key": "value", "secret": "not-so-secret"}
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """Manage FastAPI application startup and shutdown lifecycle.
 
     On startup: initialises MongoDB indexes and seeds default data.
