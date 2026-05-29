@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
-from models.user import RegisterRequest, LoginRequest, AuthResponse
-from database import users_collection
-from security.jwt_handler import create_token
-import bcrypt
 from datetime import datetime
+
+import bcrypt
+from fastapi import APIRouter, HTTPException, status
+
+from database import users_collection
+from models.user import AuthResponse, LoginRequest, RegisterRequest
+from security.jwt_handler import create_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

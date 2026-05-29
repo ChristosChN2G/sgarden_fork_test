@@ -1,17 +1,18 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 
 from config import settings
 from database import init_indexes
-from seed import seed_data
 from routes.alerts import router as alerts_router
 from routes.analytics import router as analytics_router
 from routes.auth import router as auth_router
 from routes.orders import router as orders_router
 from routes.products import router as products_router
 from routes.users import router as users_router
+from seed import seed_data
 
 # CODE QUALITY ISSUE: unused variable
 APP_NAME = "SGarden Inventory API"

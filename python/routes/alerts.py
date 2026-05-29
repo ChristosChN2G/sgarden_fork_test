@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-from database import products_collection, settings_collection
 from pydantic import BaseModel
+
+from database import products_collection, settings_collection
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 

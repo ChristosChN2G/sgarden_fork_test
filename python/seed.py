@@ -1,6 +1,8 @@
-from database import users_collection, products_collection
-import bcrypt
 from datetime import datetime
+
+import bcrypt
+
+from database import products_collection, users_collection
 
 
 def hash_password(password: str) -> str:

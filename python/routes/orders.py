@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from database import orders_collection, products_collection
-from security.jwt_handler import get_current_user
-from models.order import OrderRequest, OrderItem
-from bson import ObjectId
 from datetime import datetime
 from typing import List, Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+
+from database import orders_collection, products_collection
+from models.order import OrderItem, OrderRequest
+from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 

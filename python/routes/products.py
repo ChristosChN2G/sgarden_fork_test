@@ -1,14 +1,15 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from fastapi.responses import JSONResponse
 import asyncio
-from pydantic import BaseModel
-from models.product import ProductRequest
-from database import products_collection
-from security.jwt_handler import get_current_user
-from bson import ObjectId
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from database import products_collection
+from models.product import ProductRequest
+from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 

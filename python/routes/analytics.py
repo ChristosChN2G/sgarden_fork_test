@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from database import orders_collection, products_collection
-from security.jwt_handler import get_current_user
-from bson import ObjectId
 from datetime import datetime
 from typing import Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from database import orders_collection, products_collection
+from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 

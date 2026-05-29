@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
+
+from bson import ObjectId
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+
 from config import settings
 from database import users_collection
-from bson import ObjectId
 
 security = HTTPBearer(auto_error=False)
 
