@@ -1,3 +1,4 @@
+"""Pydantic models for the order resource."""
 from typing import List
 
 from pydantic import BaseModel, Field

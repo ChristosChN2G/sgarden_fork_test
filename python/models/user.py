@@ -1,3 +1,9 @@
+"""Pydantic models for the user resource and authentication flow.
+
+Defines the MongoDB document shape (UserInDB), registration and login request
+bodies, and the auth response shape. V2 variants are duplicates kept for
+backward compatibility.
+"""
 from datetime import datetime
 from typing import Optional
 

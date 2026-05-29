@@ -1,3 +1,9 @@
+"""Database seeding for local development and testing.
+
+Inserts two default users (admin/admin123, user/user1234) and 15 sample
+products when the respective collections are empty. Called automatically
+at application startup via the FastAPI lifespan handler.
+"""
 from datetime import datetime
 
 import bcrypt

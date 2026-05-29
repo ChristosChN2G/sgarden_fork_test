@@ -1,3 +1,9 @@
+"""Pydantic models for the product resource.
+
+Defines the MongoDB document shape (ProductInDB), the request body for
+create/update operations (ProductRequest), and the API response shape
+(ProductResponse). V2 variants are duplicates kept for backward compatibility.
+"""
 from datetime import datetime
 from typing import Optional
 

@@ -1,3 +1,9 @@
+"""User management routes.
+
+Provides user profile retrieval, search, advanced filtered search, role
+management (admin-only), and several utility endpoints. All previously
+documented security vulnerabilities in this module have been remediated.
+"""
 import hashlib
 import re
 import shlex

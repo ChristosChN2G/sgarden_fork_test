@@ -1,3 +1,8 @@
+"""Authentication routes (register and login).
+
+Handles user registration with duplicate-username/email checks and password
+hashing, and login with bcrypt verification and JWT issuance.
+"""
 from datetime import datetime
 
 import bcrypt

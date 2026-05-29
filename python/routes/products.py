@@ -1,3 +1,9 @@
+"""Product management routes.
+
+Provides paginated listing, text/category/price search, aggregated stats,
+and authenticated create/update/delete operations. Input validation is
+centralised in _validate_product.
+"""
 import asyncio
 from datetime import datetime
 from typing import Optional

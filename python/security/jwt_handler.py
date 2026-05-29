@@ -1,3 +1,9 @@
+"""JWT token creation, decoding, and FastAPI authentication dependencies.
+
+Provides create_token for issuing signed HS256 JWTs, decode_token for
+validation, and FastAPI Depends-compatible helpers (get_current_user,
+get_optional_user) for protecting route handlers.
+"""
 from datetime import datetime, timedelta
 
 from bson import ObjectId

@@ -1,3 +1,10 @@
+"""Order management routes.
+
+Handles the full order lifecycle: creation (with stock validation and
+decrement), retrieval, status transitions through the allowed workflow
+(pending → confirmed → shipped → delivered / cancelled), item updates,
+and deletion.
+"""
 from datetime import datetime
 from typing import List, Optional
 
