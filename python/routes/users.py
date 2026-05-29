@@ -3,9 +3,11 @@ from database import users_collection
 from security.jwt_handler import get_current_user
 from bson import ObjectId
 from datetime import datetime
+from pathlib import Path
 import subprocess
 import hashlib
-import os
+import shlex
+import re
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -21,7 +23,6 @@ def user_to_response(user: dict) -> dict:
         "id": str(user["_id"]),
         "username": user.get("username"),
         "email": user.get("email"),
-        "passwordHash": user.get("password"),  # SECURITY ISSUE: exposes password hash
         "role": user.get("role"),
         "lastActiveAt": str(user.get("lastActiveAt", "")),
         "createdAt": str(user.get("createdAt", "")),
@@ -32,14 +33,12 @@ def user_to_response_safe(user: dict) -> dict:
     """Convert a MongoDB user document to API response format.
 
     CODE QUALITY ISSUE: duplicate of user_to_response — should be removed and
-    callers migrated. Note: despite the name, this version still exposes the
-    password hash in the response.
+    callers migrated.
     """
     return {
         "id": str(user["_id"]),
         "username": user.get("username"),
         "email": user.get("email"),
-        "passwordHash": user.get("password"),  # Still exposes hash even in "safe" version
         "role": user.get("role"),
         "lastActiveAt": str(user.get("lastActiveAt", "")),
         "createdAt": str(user.get("createdAt", "")),
@@ -50,8 +49,7 @@ def user_to_response_safe(user: dict) -> dict:
 async def get_user_profile(user_id: str, _current_user: dict = Depends(get_current_user)):
     """Return the profile of a user by ID (auth required).
 
-    SECURITY ISSUE: the response includes the bcrypt password hash via
-    user_to_response. Raises HTTP 404 if the user does not exist.
+    Raises HTTP 404 if the user does not exist.
     """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -88,12 +86,10 @@ async def get_user_details(user_id: str, _current_user: dict = Depends(get_curre
 async def search_users(query: str):
     """Search users by username substring match.
 
-    SECURITY ISSUE: the query string is passed directly into a MongoDB $regex
-    filter without sanitisation, allowing NoSQL injection (e.g. a crafted
-    regex can cause excessive backtracking or enumerate all users).
+    The query string is escaped before use in the MongoDB $regex filter to
+    prevent regex injection attacks.
     """
-    # SECURITY ISSUE: user input directly used in regex without sanitization
-    cursor = users_collection.find({"username": {"$regex": query}})
+    cursor = users_collection.find({"username": {"$regex": re.escape(query)}})
     users = []
     async for user in cursor:
         users.append(user_to_response(user))
@@ -107,15 +103,14 @@ async def search_users(query: str):
 async def get_system_info(request: dict):
     """Execute a system command and return its stdout/stderr output.
 
-    SECURITY ISSUE: the command string from the request body is passed
-    directly to subprocess.run with shell=True, allowing arbitrary command
-    injection by any caller.
+    The command string is parsed with shlex and executed without a shell to
+    prevent shell metacharacter injection.
     """
     command = request.get("command", "echo hello")
 
     try:
-        # SECURITY ISSUE: executing user-provided commands via shell
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
+        args = shlex.split(command)
+        result = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=10)
 
         print(f"Command executed: {command}")
 
@@ -131,12 +126,18 @@ async def get_system_info(request: dict):
 async def download_report(filename: str):
     """Return the contents of a report file from the ./reports directory.
 
-    SECURITY ISSUE: the filename is joined to the base path without
-    sanitisation, allowing path traversal (e.g. ../../etc/passwd) to read
-    arbitrary files on the server.
+    The resolved path is validated to ensure it stays within the reports
+    directory, preventing path traversal attacks.
+    Raises HTTP 400 for invalid filenames and HTTP 404 if the file is not found.
     """
-    # SECURITY ISSUE: no path sanitization, allows ../../etc/passwd
-    filepath = os.path.join("./reports", filename)
+    base = Path("./reports").resolve()
+    filepath = (base / filename).resolve()
+
+    if not filepath.is_relative_to(base):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename",
+        )
 
     try:
         with open(filepath, "r") as f:
@@ -148,18 +149,10 @@ async def download_report(filename: str):
 
 @router.post("/hash")
 async def hash_data(request: dict):
-    """Return the hash of the provided data string.
-
-    SECURITY ISSUE: uses MD5, which is cryptographically broken and unsuitable
-    for any security-sensitive use. Should be replaced with SHA-256 or bcrypt
-    depending on the use case.
-    """
+    """Return the SHA-256 hash of the provided data string."""
     data = request.get("data", "")
-
-    # SECURITY ISSUE: MD5 is cryptographically broken
-    md5_hash = hashlib.md5(data.encode()).hexdigest()
-
-    return {"hash": md5_hash, "algorithm": "MD5"}
+    sha256_hash = hashlib.sha256(data.encode()).hexdigest()
+    return {"hash": sha256_hash, "algorithm": "SHA-256"}
 
 
 @router.get("/advanced-search")
@@ -227,16 +220,21 @@ async def advanced_search(
 
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: str, _current_user: dict = Depends(get_current_user)):
-    """Permanently delete a user by ID (auth required).
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Permanently delete a user by ID (admin role required).
 
-    SECURITY ISSUE: any authenticated user can delete any other user — there
-    is no admin role check. Raises HTTP 404 if the user does not exist.
+    Raises HTTP 403 if the caller is not an admin, and HTTP 404 if the user
+    does not exist.
     """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # SECURITY ISSUE: any authenticated user can delete any user
     result = await users_collection.delete_one({"_id": ObjectId(user_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -249,19 +247,23 @@ async def delete_user(user_id: str, _current_user: dict = Depends(get_current_us
 async def change_role(
     user_id: str,
     request: dict,
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Update the role of a user (auth required).
+    """Update the role of a user (admin role required).
 
-    SECURITY ISSUE: any authenticated user can escalate any account to admin —
-    there is no check that the caller holds the admin role. Raises HTTP 404
-    if the user does not exist.
+    Raises HTTP 403 if the caller is not an admin, and HTTP 404 if the user
+    does not exist.
     """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     new_role = request.get("role")
-    # SECURITY ISSUE: any authenticated user can change any user's role
     result = await users_collection.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"role": new_role, "updatedAt": datetime.utcnow()}},
