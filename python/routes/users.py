@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from database import users_collection, db
+from database import users_collection
 from security.jwt_handler import get_current_user
 from bson import ObjectId
 from datetime import datetime
@@ -138,9 +138,6 @@ async def advanced_search(
     order: str = None,
 ):
     """Advanced search - CODE QUALITY ISSUE: deeply nested logic, high complexity."""
-    # Unused variable
-    search_id = "search-" + str(datetime.utcnow().timestamp())
-
     cursor = users_collection.find()
     all_users = []
     async for user in cursor:

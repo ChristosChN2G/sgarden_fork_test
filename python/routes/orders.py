@@ -34,26 +34,45 @@ def order_to_response(order: dict) -> dict:
 
 
 async def calculate_total(items: List[OrderItem]) -> float:
-    valid_ids = [ObjectId(item.productId) for item in items if ObjectId.is_valid(item.productId)]
-    products = await products_collection.find({"_id": {"$in": valid_ids}}).to_list(length=len(valid_ids))
+    valid_ids = [
+        ObjectId(item.productId)
+        for item in items
+        if ObjectId.is_valid(item.productId)
+    ]
+    products = await products_collection.find(
+        {"_id": {"$in": valid_ids}}
+    ).to_list(length=len(valid_ids))
     price_map = {str(p["_id"]): p.get("price", 0) for p in products}
     return round(sum(price_map.get(item.productId, 0) * item.quantity for item in items), 2)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_order(request: OrderRequest, current_user: dict = Depends(get_current_user)):
-    valid_ids = [ObjectId(item.productId) for item in request.items if ObjectId.is_valid(item.productId)]
-    products = await products_collection.find({"_id": {"$in": valid_ids}}).to_list(length=len(valid_ids))
+    valid_ids = [
+        ObjectId(item.productId)
+        for item in request.items
+        if ObjectId.is_valid(item.productId)
+    ]
+    products = await products_collection.find(
+        {"_id": {"$in": valid_ids}}
+    ).to_list(length=len(valid_ids))
     product_map = {str(p["_id"]): p for p in products}
 
     for item in request.items:
         product = product_map.get(item.productId)
         if not product:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Product {item.productId} not found")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Product {item.productId} not found",
+            )
         if product.get("stock", 0) < item.quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient stock for product {item.productId}: available {product.get('stock', 0)}, requested {item.quantity}",
+                detail=(
+                    f"Insufficient stock for product {item.productId}: "
+                    f"available {product.get('stock', 0)}, "
+                    f"requested {item.quantity}"
+                ),
             )
 
     for item in request.items:
@@ -63,7 +82,13 @@ async def create_order(request: OrderRequest, current_user: dict = Depends(get_c
         )
 
     price_map = {str(p["_id"]): p.get("price", 0) for p in products}
-    total = round(sum(price_map.get(item.productId, 0) * item.quantity for item in request.items), 2)
+    total = round(
+        sum(
+            price_map.get(item.productId, 0) * item.quantity
+            for item in request.items
+        ),
+        2,
+    )
 
     order_doc = {
         "items": [item.model_dump() for item in request.items],
@@ -100,7 +125,11 @@ async def get_order(order_id: str, current_user: dict = Depends(get_current_user
 
 
 @router.patch("/{order_id}/status")
-async def update_order_status(order_id: str, request: StatusUpdateRequest, current_user: dict = Depends(get_current_user)):
+async def update_order_status(
+    order_id: str,
+    request: StatusUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
     if not ObjectId.is_valid(order_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
@@ -127,7 +156,11 @@ async def update_order_status(order_id: str, request: StatusUpdateRequest, curre
 
 
 @router.put("/{order_id}")
-async def update_order(order_id: str, request: OrderRequest, current_user: dict = Depends(get_current_user)):
+async def update_order(
+    order_id: str,
+    request: OrderRequest,
+    current_user: dict = Depends(get_current_user),
+):
     if not ObjectId.is_valid(order_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 

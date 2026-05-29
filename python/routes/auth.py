@@ -3,7 +3,6 @@ from models.user import RegisterRequest, LoginRequest, AuthResponse
 from database import users_collection
 from security.jwt_handler import create_token
 import bcrypt
-from bson import ObjectId
 from datetime import datetime
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -15,6 +14,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
 
 # CODE QUALITY ISSUE: unused variable
 auth_version = "1.0.0"
