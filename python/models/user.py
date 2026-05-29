@@ -4,6 +4,8 @@ from datetime import datetime
 
 
 class UserInDB(BaseModel):
+    """MongoDB document shape for a user, as stored in the database."""
+
     id: Optional[str] = Field(None, alias="_id")
     username: str
     email: str
@@ -15,24 +17,34 @@ class UserInDB(BaseModel):
 
 
 class RegisterRequest(BaseModel):
+    """Request body for the user registration endpoint."""
+
     username: str = Field(..., min_length=3, max_length=30)
     email: EmailStr
     password: str = Field(..., min_length=8)
 
 
 class LoginRequest(BaseModel):
+    """Request body for the login endpoint."""
+
     username: str
     password: str
 
 
 class AuthResponse(BaseModel):
+    """Response body returned after a successful login or registration."""
+
     token: str
     username: str
     role: str
 
 
 class UserInDBV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of UserInDB."""
+    """MongoDB document shape for a user, as stored in the database.
+
+    CODE QUALITY ISSUE: duplicate of UserInDB — should be removed and all
+    references migrated to UserInDB.
+    """
     id: Optional[str] = Field(None, alias="_id")
     username: str
     email: str
@@ -44,20 +56,32 @@ class UserInDBV2(BaseModel):
 
 
 class RegisterRequestV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of RegisterRequest."""
+    """Request body for the user registration endpoint.
+
+    CODE QUALITY ISSUE: duplicate of RegisterRequest — should be removed and
+    all references migrated to RegisterRequest.
+    """
     username: str = Field(..., min_length=3, max_length=30)
     email: EmailStr
     password: str = Field(..., min_length=8)
 
 
 class LoginRequestV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of LoginRequest."""
+    """Request body for the login endpoint.
+
+    CODE QUALITY ISSUE: duplicate of LoginRequest — should be removed and
+    all references migrated to LoginRequest.
+    """
     username: str
     password: str
 
 
 class AuthResponseV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of AuthResponse."""
+    """Response body returned after a successful login or registration.
+
+    CODE QUALITY ISSUE: duplicate of AuthResponse — should be removed and
+    all references migrated to AuthResponse.
+    """
     token: str
     username: str
     role: str

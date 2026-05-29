@@ -19,6 +19,8 @@ _VALID_TRANSITIONS = {
 
 
 class StatusUpdateRequest(BaseModel):
+    """Request body for transitioning an order to a new status."""
+
     status: str
 
 

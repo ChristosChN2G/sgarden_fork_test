@@ -9,6 +9,8 @@ _THRESHOLD_KEY = "alert_threshold"
 
 
 class ThresholdRequest(BaseModel):
+    """Request body for updating the low-stock alert threshold."""
+
     threshold: int
 
 

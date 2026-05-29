@@ -14,6 +14,8 @@ router = APIRouter(prefix="/api/products", tags=["products"])
 
 
 class StockUpdateRequest(BaseModel):
+    """Request body for updating a product's stock quantity."""
+
     stock: int
 
 

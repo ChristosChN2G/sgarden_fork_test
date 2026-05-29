@@ -4,6 +4,8 @@ from datetime import datetime
 
 
 class ProductInDB(BaseModel):
+    """MongoDB document shape for a product, as stored in the database."""
+
     id: Optional[str] = Field(None, alias="_id")
     name: str
     description: Optional[str] = None
@@ -15,6 +17,11 @@ class ProductInDB(BaseModel):
 
 
 class ProductRequest(BaseModel):
+    """Request body for creating or updating a product.
+
+    All fields are optional to support partial updates (PUT).
+    """
+
     name: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
@@ -23,6 +30,8 @@ class ProductRequest(BaseModel):
 
 
 class ProductResponse(BaseModel):
+    """API response shape for a product returned to the client."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -34,7 +43,11 @@ class ProductResponse(BaseModel):
 
 
 class ProductInDBV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of ProductInDB."""
+    """MongoDB document shape for a product, as stored in the database.
+
+    CODE QUALITY ISSUE: duplicate of ProductInDB — should be removed and all
+    references migrated to ProductInDB.
+    """
     id: Optional[str] = Field(None, alias="_id")
     name: str
     description: Optional[str] = None
@@ -46,7 +59,11 @@ class ProductInDBV2(BaseModel):
 
 
 class ProductRequestV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of ProductRequest."""
+    """Request body for creating or updating a product.
+
+    CODE QUALITY ISSUE: duplicate of ProductRequest — should be removed and
+    all references migrated to ProductRequest.
+    """
     name: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
@@ -55,7 +72,11 @@ class ProductRequestV2(BaseModel):
 
 
 class ProductResponseV2(BaseModel):
-    """CODE QUALITY ISSUE: duplicate of ProductResponse."""
+    """API response shape for a product returned to the client.
+
+    CODE QUALITY ISSUE: duplicate of ProductResponse — should be removed and
+    all references migrated to ProductResponse.
+    """
     id: str
     name: str
     description: Optional[str] = None
