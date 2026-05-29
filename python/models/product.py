@@ -18,7 +18,7 @@ class ProductInDB(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None
     price: Optional[float] = None
-    stock: Optional[int] = 0
+    stock: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -44,6 +44,6 @@ class ProductResponse(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None
     price: Optional[float] = None
-    stock: Optional[int] = 0
+    stock: int = 0
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None

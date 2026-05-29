@@ -10,14 +10,36 @@ import shlex
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from database import users_collection
 from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+_VALID_ROLES = {"admin", "user"}
+
+
+class SystemInfoRequest(BaseModel):
+    """Request body for the system info endpoint."""
+
+    command: str = "echo hello"
+
+
+class HashRequest(BaseModel):
+    """Request body for the data hashing endpoint."""
+
+    data: str = ""
+
+
+class RoleUpdateRequest(BaseModel):
+    """Request body for updating a user's role."""
+
+    role: str = Field(..., description="Target role — must be 'admin' or 'user'")
 
 
 def user_to_response(user: dict) -> dict:
@@ -68,13 +90,13 @@ async def search_users(query: str):
 
 
 @router.post("/system/info")
-async def get_system_info(request: dict):
+async def get_system_info(request: SystemInfoRequest):
     """Execute a system command and return its stdout/stderr output.
 
     The command string is parsed with shlex and executed without a shell to
     prevent shell metacharacter injection.
     """
-    command = request.get("command", "echo hello")
+    command = request.command
 
     try:
         args = shlex.split(command)
@@ -116,10 +138,9 @@ async def download_report(filename: str):
 
 
 @router.post("/hash")
-async def hash_data(request: dict):
+async def hash_data(request: HashRequest):
     """Return the SHA-256 hash of the provided data string."""
-    data = request.get("data", "")
-    sha256_hash = hashlib.sha256(data.encode()).hexdigest()
+    sha256_hash = hashlib.sha256(request.data.encode()).hexdigest()
     return {"hash": sha256_hash, "algorithm": "SHA-256"}
 
 
@@ -135,11 +156,11 @@ _SORT_FIELD_MAP = {
 
 @router.get("/advanced-search")
 async def advanced_search(
-    username: str = None,
-    email: str = None,
-    role: str = None,
-    sort_by: str = None,
-    order: str = None,
+    username: Optional[str] = None,
+    email: Optional[str] = None,
+    role: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    order: Optional[str] = None,
 ):
     """Search users by username, email, and/or role with optional sorting.
 
@@ -191,14 +212,20 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
 @router.put("/{user_id}/role")
 async def change_role(
     user_id: str,
-    request: dict,
+    request: RoleUpdateRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """Update the role of a user (admin role required).
 
-    Raises HTTP 403 if the caller is not an admin, and HTTP 404 if the user
-    does not exist.
+    Raises HTTP 400 if the role is not valid, HTTP 403 if the caller is not
+    an admin, and HTTP 404 if the user does not exist.
     """
+    if request.role not in _VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(sorted(_VALID_ROLES))}",
+        )
+
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -208,7 +235,7 @@ async def change_role(
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    new_role = request.get("role")
+    new_role = request.role
     result = await users_collection.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"role": new_role, "updatedAt": datetime.utcnow()}},

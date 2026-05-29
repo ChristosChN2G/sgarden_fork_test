@@ -1,8 +1,8 @@
 """JWT token creation, decoding, and FastAPI authentication dependencies.
 
 Provides create_token for issuing signed HS256 JWTs, decode_token for
-validation, and FastAPI Depends-compatible helpers (get_current_user,
-get_optional_user) for protecting route handlers.
+validation, and the get_current_user FastAPI dependency for protecting
+route handlers.
 """
 from datetime import datetime, timedelta
 
@@ -76,18 +76,3 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
     user["_id"] = str(user["_id"])
     return user
-
-
-async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Returns user if authenticated, None otherwise."""
-    if credentials is None:
-        return None
-    try:
-        payload = decode_token(credentials.credentials)
-        user_id = payload.get("sub")
-        user = await users_collection.find_one({"_id": ObjectId(user_id)})
-        if user:
-            user["_id"] = str(user["_id"])
-        return user
-    except Exception:
-        return None
