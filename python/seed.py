@@ -1,9 +1,12 @@
-from database import users_collection, products_collection
-import bcrypt
 from datetime import datetime
+
+import bcrypt
+
+from database import products_collection, users_collection
 
 
 def hash_password(password: str) -> str:
+    """Hash a plaintext password with bcrypt and return the encoded string."""
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 

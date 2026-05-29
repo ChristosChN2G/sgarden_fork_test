@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
+
+from bson import ObjectId
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+
 from config import settings
 from database import users_collection
-from bson import ObjectId
 
 security = HTTPBearer(auto_error=False)
 
@@ -17,6 +19,10 @@ token_cache = {}
 
 
 def create_token(user_id: str, username: str, role: str) -> str:
+    """Create a signed HS256 JWT containing user identity and role claims.
+
+    The token is valid for EXPIRATION_HOURS hours from the time of creation.
+    """
     payload = {
         "sub": user_id,
         "username": username,
@@ -28,6 +34,10 @@ def create_token(user_id: str, username: str, role: str) -> str:
 
 
 def decode_token(token: str) -> dict:
+    """Decode and validate a JWT, returning its payload as a dict.
+
+    Raises HTTP 401 if the token is invalid or expired.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
@@ -39,6 +49,12 @@ def decode_token(token: str) -> dict:
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """FastAPI dependency that resolves the authenticated user from a Bearer token.
+
+    Validates the token, looks up the user in the database, and returns the
+    user document with the MongoDB _id converted to a string.
+    Raises HTTP 401 if the token is missing, invalid, or the user no longer exists.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,7 +78,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 async def get_current_user_deprecated(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
-    """CODE QUALITY ISSUE: duplicate of get_current_user above."""
+    """Resolve the authenticated user from a Bearer token.
+
+    CODE QUALITY ISSUE: duplicate of get_current_user — kept for backward
+    compatibility but should be removed and callers migrated to get_current_user.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,11 +1,15 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+import hashlib
+import re
+import shlex
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from database import users_collection
 from security.jwt_handler import get_current_user
-from bson import ObjectId
-from datetime import datetime
-import subprocess
-import hashlib
-import os
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -21,7 +25,6 @@ def user_to_response(user: dict) -> dict:
         "id": str(user["_id"]),
         "username": user.get("username"),
         "email": user.get("email"),
-        "passwordHash": user.get("password"),  # SECURITY ISSUE: exposes password hash
         "role": user.get("role"),
         "lastActiveAt": str(user.get("lastActiveAt", "")),
         "createdAt": str(user.get("createdAt", "")),
@@ -29,12 +32,15 @@ def user_to_response(user: dict) -> dict:
 
 
 def user_to_response_safe(user: dict) -> dict:
-    """CODE QUALITY ISSUE: duplicate of user_to_response with minor difference."""
+    """Convert a MongoDB user document to API response format.
+
+    CODE QUALITY ISSUE: duplicate of user_to_response — should be removed and
+    callers migrated.
+    """
     return {
         "id": str(user["_id"]),
         "username": user.get("username"),
         "email": user.get("email"),
-        "passwordHash": user.get("password"),  # Still exposes hash even in "safe" version
         "role": user.get("role"),
         "lastActiveAt": str(user.get("lastActiveAt", "")),
         "createdAt": str(user.get("createdAt", "")),
@@ -42,8 +48,11 @@ def user_to_response_safe(user: dict) -> dict:
 
 
 @router.get("/profile/{user_id}")
-async def get_user_profile(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Get user profile - SECURITY ISSUE: exposes password hash."""
+async def get_user_profile(user_id: str, _current_user: dict = Depends(get_current_user)):
+    """Return the profile of a user by ID (auth required).
+
+    Raises HTTP 404 if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -57,8 +66,12 @@ async def get_user_profile(user_id: str, current_user: dict = Depends(get_curren
 
 
 @router.get("/details/{user_id}")
-async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Get user details - CODE QUALITY ISSUE: duplicate of get_user_profile."""
+async def get_user_details(user_id: str, _current_user: dict = Depends(get_current_user)):
+    """Return the details of a user by ID (auth required).
+
+    CODE QUALITY ISSUE: duplicate of get_user_profile — should be removed and
+    callers migrated. Raises HTTP 404 if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -73,9 +86,12 @@ async def get_user_details(user_id: str, current_user: dict = Depends(get_curren
 
 @router.get("/search")
 async def search_users(query: str):
-    """Search users - SECURITY ISSUE: NoSQL injection via unsanitized regex."""
-    # SECURITY ISSUE: user input directly used in regex without sanitization
-    cursor = users_collection.find({"username": {"$regex": query}})
+    """Search users by username substring match.
+
+    The query string is escaped before use in the MongoDB $regex filter to
+    prevent regex injection attacks.
+    """
+    cursor = users_collection.find({"username": {"$regex": re.escape(query)}})
     users = []
     async for user in cursor:
         users.append(user_to_response(user))
@@ -87,12 +103,16 @@ async def search_users(query: str):
 
 @router.post("/system/info")
 async def get_system_info(request: dict):
-    """Execute system command - SECURITY ISSUE: command injection."""
+    """Execute a system command and return its stdout/stderr output.
+
+    The command string is parsed with shlex and executed without a shell to
+    prevent shell metacharacter injection.
+    """
     command = request.get("command", "echo hello")
 
     try:
-        # SECURITY ISSUE: executing user-provided commands via shell
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
+        args = shlex.split(command)
+        result = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=10)
 
         print(f"Command executed: {command}")
 
@@ -106,9 +126,20 @@ async def get_system_info(request: dict):
 
 @router.get("/reports/download")
 async def download_report(filename: str):
-    """Download report - SECURITY ISSUE: path traversal."""
-    # SECURITY ISSUE: no path sanitization, allows ../../etc/passwd
-    filepath = os.path.join("./reports", filename)
+    """Return the contents of a report file from the ./reports directory.
+
+    The resolved path is validated to ensure it stays within the reports
+    directory, preventing path traversal attacks.
+    Raises HTTP 400 for invalid filenames and HTTP 404 if the file is not found.
+    """
+    base = Path("./reports").resolve()
+    filepath = (base / filename).resolve()
+
+    if not filepath.is_relative_to(base):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename",
+        )
 
     try:
         with open(filepath, "r") as f:
@@ -120,13 +151,10 @@ async def download_report(filename: str):
 
 @router.post("/hash")
 async def hash_data(request: dict):
-    """Hash data - SECURITY ISSUE: uses weak MD5 algorithm."""
+    """Return the SHA-256 hash of the provided data string."""
     data = request.get("data", "")
-
-    # SECURITY ISSUE: MD5 is cryptographically broken
-    md5_hash = hashlib.md5(data.encode()).hexdigest()
-
-    return {"hash": md5_hash, "algorithm": "MD5"}
+    sha256_hash = hashlib.sha256(data.encode()).hexdigest()
+    return {"hash": sha256_hash, "algorithm": "SHA-256"}
 
 
 @router.get("/advanced-search")
@@ -137,7 +165,15 @@ async def advanced_search(
     sort_by: str = None,
     order: str = None,
 ):
-    """Advanced search - CODE QUALITY ISSUE: deeply nested logic, high complexity."""
+    """Search users by username, email, and/or role with optional sorting.
+
+    All filter parameters are optional and combinable. Matching is case-insensitive
+    substring matching for username and email, and exact match for role.
+
+    CODE QUALITY ISSUE: loads all users into Python memory and filters in
+    application code instead of pushing filters to MongoDB. This will not scale
+    and should be rewritten to build a MongoDB query directly.
+    """
     cursor = users_collection.find()
     all_users = []
     async for user in cursor:
@@ -187,11 +223,20 @@ async def advanced_search(
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete user - SECURITY ISSUE: no admin role check."""
+    """Permanently delete a user by ID (admin role required).
+
+    Raises HTTP 403 if the caller is not an admin, and HTTP 404 if the user
+    does not exist.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # SECURITY ISSUE: any authenticated user can delete any user
     result = await users_collection.delete_one({"_id": ObjectId(user_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -201,13 +246,26 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
 
 
 @router.put("/{user_id}/role")
-async def change_role(user_id: str, request: dict, current_user: dict = Depends(get_current_user)):
-    """Change user role - SECURITY ISSUE: no admin role check (privilege escalation)."""
+async def change_role(
+    user_id: str,
+    request: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update the role of a user (admin role required).
+
+    Raises HTTP 403 if the caller is not an admin, and HTTP 404 if the user
+    does not exist.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     new_role = request.get("role")
-    # SECURITY ISSUE: any authenticated user can change any user's role
     result = await users_collection.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"role": new_role, "updatedAt": datetime.utcnow()}},

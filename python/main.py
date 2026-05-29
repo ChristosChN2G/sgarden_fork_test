@@ -1,17 +1,18 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 
 from config import settings
 from database import init_indexes
-from seed import seed_data
 from routes.alerts import router as alerts_router
 from routes.analytics import router as analytics_router
 from routes.auth import router as auth_router
 from routes.orders import router as orders_router
 from routes.products import router as products_router
 from routes.users import router as users_router
+from seed import seed_data
 
 # CODE QUALITY ISSUE: unused variable
 APP_NAME = "SGarden Inventory API"
@@ -20,7 +21,12 @@ unused_config = {"key": "value", "secret": "not-so-secret"}
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
+    """Manage FastAPI application startup and shutdown lifecycle.
+
+    On startup: initialises MongoDB indexes and seeds default data.
+    On shutdown: logs the teardown event.
+    """
     # Startup
     print("Starting SGarden API...")
     await init_indexes()
@@ -58,6 +64,7 @@ app.include_router(users_router)
 
 @app.get("/api/health")
 async def health():
+    """Return a simple liveness check confirming the API is running."""
     return {"status": "ok"}
 
 

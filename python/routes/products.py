@@ -1,19 +1,22 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from fastapi.responses import JSONResponse
 import asyncio
-from pydantic import BaseModel
-from models.product import ProductRequest
-from database import products_collection
-from security.jwt_handler import get_current_user
-from bson import ObjectId
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from database import products_collection
+from models.product import ProductRequest
+from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
 
 class StockUpdateRequest(BaseModel):
+    """Request body for updating a product's stock quantity."""
+
     stock: int
 
 
@@ -42,7 +45,11 @@ def product_to_response(product: dict) -> dict:
 
 
 def format_product(product: dict) -> dict:
-    """CODE QUALITY ISSUE: duplicate of product_to_response above."""
+    """Convert a MongoDB product document to API response format.
+
+    CODE QUALITY ISSUE: duplicate of product_to_response — should be removed
+    and all callers migrated to product_to_response.
+    """
     return {
         "id": str(product["_id"]),
         "name": product.get("name"),
@@ -66,6 +73,12 @@ _VALID_CATEGORIES = {"Electronics", "Accessories", "Storage", "Networking"}
 
 
 def _validate_product(request: ProductRequest, is_create: bool = False) -> dict:
+    """Validate product request fields and return a dict of field-level errors.
+
+    When is_create is True, the name field is required.
+    Price must be positive and category must be one of the allowed values.
+    An empty dict means the request is valid.
+    """
     errors = {}
     if is_create and not (request.name and request.name.strip()):
         errors["name"] = "name is required"
@@ -83,6 +96,11 @@ async def get_all_products(
     sort: Optional[str] = None,
     order: str = Query(default="asc", pattern="^(asc|desc)$"),
 ):
+    """Return a paginated list of all products with optional sorting.
+
+    Sorting is only applied when the sort field is in the allowed set.
+    Returns total count alongside the current page of results.
+    """
     skip = (page - 1) * limit
     sort_direction = -1 if order == "desc" else 1
 
@@ -111,6 +129,11 @@ async def search_products(
     minPrice: Optional[float] = None,
     maxPrice: Optional[float] = None,
 ):
+    """Search products by name/description text and optional filters.
+
+    All parameters are optional and combinable. Text search (q) is
+    case-insensitive and matches against both name and description fields.
+    """
     query: dict = {}
 
     if q:
@@ -139,6 +162,12 @@ async def search_products(
 
 @router.get("/stats")
 async def get_product_stats():
+    """Return aggregated statistics across all products.
+
+    Uses a single MongoDB $facet aggregation to compute overall price stats
+    (total count, average, min, max) and a per-category product count in one
+    round-trip.
+    """
     pipeline = [
         {
             "$facet": {
@@ -177,6 +206,11 @@ async def get_product_stats():
 
 @router.get("/{product_id}")
 async def get_product_by_id(product_id: str):
+    """Return a single product by its MongoDB ObjectId.
+
+    Raises HTTP 404 if the ID is not a valid ObjectId or the product does
+    not exist.
+    """
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
@@ -191,8 +225,13 @@ async def get_product_by_id(product_id: str):
 async def update_stock(
     product_id: str,
     request: StockUpdateRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
+    """Update the stock quantity for a product (auth required).
+
+    Rejects negative stock values. Raises HTTP 404 if the product does not
+    exist.
+    """
     if request.stock < 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -215,7 +254,13 @@ async def update_stock(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_product(request: ProductRequest, current_user: dict = Depends(get_current_user)):
+async def create_product(request: ProductRequest, _current_user: dict = Depends(get_current_user)):
+    """Create a new product and return it (auth required).
+
+    Validates name (required), price (must be positive), and category (must
+    be from the allowed set). Returns HTTP 400 with field-level errors on
+    validation failure.
+    """
     errors = _validate_product(request, is_create=True)
     if errors:
         return JSONResponse(
@@ -242,9 +287,13 @@ async def create_product(request: ProductRequest, current_user: dict = Depends(g
 async def update_product_legacy(
     product_id: str,
     request: ProductRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
-    """CODE QUALITY ISSUE: duplicate of update_product."""
+    """Update an existing product's fields (auth required).
+
+    CODE QUALITY ISSUE: duplicate of update_product — should be removed and
+    any internal callers migrated to the update_product route handler.
+    """
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
@@ -281,8 +330,14 @@ async def update_product_legacy(
 async def update_product(
     product_id: str,
     request: ProductRequest,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_user),
 ):
+    """Update an existing product's fields and return the updated document (auth required).
+
+    Only fields present in the request body are applied. Raises HTTP 400 if
+    no fields are provided or validation fails, and HTTP 404 if the product
+    does not exist.
+    """
     errors = _validate_product(request, is_create=False)
     if errors:
         return JSONResponse(
@@ -323,7 +378,11 @@ async def update_product(
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_product(product_id: str, _current_user: dict = Depends(get_current_user)):
+    """Permanently delete a product by ID (auth required).
+
+    Raises HTTP 404 if the product does not exist.
+    """
     if not ObjectId.is_valid(product_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
