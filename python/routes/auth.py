@@ -9,10 +9,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 def hash_password(password: str) -> str:
+    """Hash a plaintext password with bcrypt and return the encoded string."""
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
+    """Return True if the plaintext password matches the given bcrypt hash."""
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
@@ -22,6 +24,12 @@ auth_version = "1.0.0"
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=AuthResponse)
 async def register(request: RegisterRequest):
+    """Register a new user account and return a JWT.
+
+    Validates that neither the username nor email is already taken, hashes
+    the password, persists the user document, and issues a 24-hour token.
+    Raises HTTP 400 if the username or email already exists.
+    """
     # Check if username exists
     existing_user = await users_collection.find_one({"username": request.username})
     if existing_user:
@@ -58,7 +66,11 @@ async def register(request: RegisterRequest):
 
 
 async def register_user(request: RegisterRequest):
-    """CODE QUALITY ISSUE: duplicate of register function above."""
+    """Register a new user account and return a JWT.
+
+    CODE QUALITY ISSUE: duplicate of register — should be removed and any
+    internal callers migrated to the register route handler above.
+    """
     existing_user = await users_collection.find_one({"username": request.username})
     if existing_user:
         raise HTTPException(
@@ -93,6 +105,11 @@ async def register_user(request: RegisterRequest):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
+    """Authenticate a user with username and password and return a JWT.
+
+    Updates the user's lastActiveAt timestamp on successful login.
+    Raises HTTP 401 if the username does not exist or the password is wrong.
+    """
     user = await users_collection.find_one({"username": request.username})
     if not user:
         raise HTTPException(

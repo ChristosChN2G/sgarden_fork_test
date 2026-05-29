@@ -29,7 +29,12 @@ def user_to_response(user: dict) -> dict:
 
 
 def user_to_response_safe(user: dict) -> dict:
-    """CODE QUALITY ISSUE: duplicate of user_to_response with minor difference."""
+    """Convert a MongoDB user document to API response format.
+
+    CODE QUALITY ISSUE: duplicate of user_to_response — should be removed and
+    callers migrated. Note: despite the name, this version still exposes the
+    password hash in the response.
+    """
     return {
         "id": str(user["_id"]),
         "username": user.get("username"),
@@ -43,7 +48,11 @@ def user_to_response_safe(user: dict) -> dict:
 
 @router.get("/profile/{user_id}")
 async def get_user_profile(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Get user profile - SECURITY ISSUE: exposes password hash."""
+    """Return the profile of a user by ID (auth required).
+
+    SECURITY ISSUE: the response includes the bcrypt password hash via
+    user_to_response. Raises HTTP 404 if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -58,7 +67,11 @@ async def get_user_profile(user_id: str, current_user: dict = Depends(get_curren
 
 @router.get("/details/{user_id}")
 async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Get user details - CODE QUALITY ISSUE: duplicate of get_user_profile."""
+    """Return the details of a user by ID (auth required).
+
+    CODE QUALITY ISSUE: duplicate of get_user_profile — should be removed and
+    callers migrated. Raises HTTP 404 if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -73,7 +86,12 @@ async def get_user_details(user_id: str, current_user: dict = Depends(get_curren
 
 @router.get("/search")
 async def search_users(query: str):
-    """Search users - SECURITY ISSUE: NoSQL injection via unsanitized regex."""
+    """Search users by username substring match.
+
+    SECURITY ISSUE: the query string is passed directly into a MongoDB $regex
+    filter without sanitisation, allowing NoSQL injection (e.g. a crafted
+    regex can cause excessive backtracking or enumerate all users).
+    """
     # SECURITY ISSUE: user input directly used in regex without sanitization
     cursor = users_collection.find({"username": {"$regex": query}})
     users = []
@@ -87,7 +105,12 @@ async def search_users(query: str):
 
 @router.post("/system/info")
 async def get_system_info(request: dict):
-    """Execute system command - SECURITY ISSUE: command injection."""
+    """Execute a system command and return its stdout/stderr output.
+
+    SECURITY ISSUE: the command string from the request body is passed
+    directly to subprocess.run with shell=True, allowing arbitrary command
+    injection by any caller.
+    """
     command = request.get("command", "echo hello")
 
     try:
@@ -106,7 +129,12 @@ async def get_system_info(request: dict):
 
 @router.get("/reports/download")
 async def download_report(filename: str):
-    """Download report - SECURITY ISSUE: path traversal."""
+    """Return the contents of a report file from the ./reports directory.
+
+    SECURITY ISSUE: the filename is joined to the base path without
+    sanitisation, allowing path traversal (e.g. ../../etc/passwd) to read
+    arbitrary files on the server.
+    """
     # SECURITY ISSUE: no path sanitization, allows ../../etc/passwd
     filepath = os.path.join("./reports", filename)
 
@@ -120,7 +148,12 @@ async def download_report(filename: str):
 
 @router.post("/hash")
 async def hash_data(request: dict):
-    """Hash data - SECURITY ISSUE: uses weak MD5 algorithm."""
+    """Return the hash of the provided data string.
+
+    SECURITY ISSUE: uses MD5, which is cryptographically broken and unsuitable
+    for any security-sensitive use. Should be replaced with SHA-256 or bcrypt
+    depending on the use case.
+    """
     data = request.get("data", "")
 
     # SECURITY ISSUE: MD5 is cryptographically broken
@@ -137,7 +170,15 @@ async def advanced_search(
     sort_by: str = None,
     order: str = None,
 ):
-    """Advanced search - CODE QUALITY ISSUE: deeply nested logic, high complexity."""
+    """Search users by username, email, and/or role with optional sorting.
+
+    All filter parameters are optional and combinable. Matching is case-insensitive
+    substring matching for username and email, and exact match for role.
+
+    CODE QUALITY ISSUE: loads all users into Python memory and filters in
+    application code instead of pushing filters to MongoDB. This will not scale
+    and should be rewritten to build a MongoDB query directly.
+    """
     cursor = users_collection.find()
     all_users = []
     async for user in cursor:
@@ -187,7 +228,11 @@ async def advanced_search(
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete user - SECURITY ISSUE: no admin role check."""
+    """Permanently delete a user by ID (auth required).
+
+    SECURITY ISSUE: any authenticated user can delete any other user — there
+    is no admin role check. Raises HTTP 404 if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -202,7 +247,12 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
 
 @router.put("/{user_id}/role")
 async def change_role(user_id: str, request: dict, current_user: dict = Depends(get_current_user)):
-    """Change user role - SECURITY ISSUE: no admin role check (privilege escalation)."""
+    """Update the role of a user (auth required).
+
+    SECURITY ISSUE: any authenticated user can escalate any account to admin —
+    there is no check that the caller holds the admin role. Raises HTTP 404
+    if the user does not exist.
+    """
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 

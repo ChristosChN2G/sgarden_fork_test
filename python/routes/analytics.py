@@ -9,6 +9,12 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
 def _parse_date(date_str: str, end_of_day: bool = False) -> datetime:
+    """Parse an ISO-format date string into a datetime object.
+
+    When end_of_day is True, the time is set to 23:59:59.999999 so the
+    value acts as an inclusive upper bound for date-range queries.
+    Raises HTTP 400 with a descriptive message on invalid input.
+    """
     try:
         dt = datetime.fromisoformat(date_str)
         if end_of_day:
@@ -27,6 +33,12 @@ async def get_sales_analytics(
     startDate: Optional[str] = None,
     endDate: Optional[str] = None,
 ):
+    """Return aggregated sales analytics with an optional date range filter (auth required).
+
+    Computes total revenue, total order count, revenue grouped by month, and
+    the top 10 products by quantity sold. When startDate or endDate are
+    provided (ISO format), only orders within that range are included.
+    """
     pipeline = []
 
     # Date range match stage

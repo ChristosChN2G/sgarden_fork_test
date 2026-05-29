@@ -21,6 +21,11 @@ unused_config = {"key": "value", "secret": "not-so-secret"}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Manage FastAPI application startup and shutdown lifecycle.
+
+    On startup: initialises MongoDB indexes and seeds default data.
+    On shutdown: logs the teardown event.
+    """
     # Startup
     print("Starting SGarden API...")
     await init_indexes()
@@ -58,6 +63,7 @@ app.include_router(users_router)
 
 @app.get("/api/health")
 async def health():
+    """Return a simple liveness check confirming the API is running."""
     return {"status": "ok"}
 
 
