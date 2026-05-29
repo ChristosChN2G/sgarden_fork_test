@@ -3,7 +3,9 @@
 Handles user registration with duplicate-username/email checks and password
 hashing, and login with bcrypt verification and JWT issuance.
 """
-from datetime import datetime
+from datetime import datetime, timezone
+
+import logging
 
 import bcrypt
 from fastapi import APIRouter, HTTPException, status
@@ -13,6 +15,8 @@ from models.user import AuthResponse, LoginRequest, RegisterRequest
 from security.jwt_handler import create_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+logger = logging.getLogger(__name__)
 
 
 def hash_password(password: str) -> str:
@@ -55,16 +59,16 @@ async def register(request: RegisterRequest):
         "email": request.email,
         "password": hash_password(request.password),
         "role": "user",
-        "lastActiveAt": datetime.utcnow(),
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "lastActiveAt": datetime.now(timezone.utc),
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc),
     }
 
     result = await users_collection.insert_one(user_doc)
     user_id = str(result.inserted_id)
 
     token = create_token(user_id, request.username, "user")
-    print(f"User registered: {request.username}")
+    logger.info("User registered: %s", request.username)
     return AuthResponse(token=token, username=request.username, role="user")
 
 
@@ -91,10 +95,10 @@ async def login(request: LoginRequest):
     # Update last active
     await users_collection.update_one(
         {"_id": user["_id"]},
-        {"$set": {"lastActiveAt": datetime.utcnow()}},
+        {"$set": {"lastActiveAt": datetime.now(timezone.utc)}},
     )
 
     user_id = str(user["_id"])
     token = create_token(user_id, user["username"], user["role"])
-    print(f"User logged in: {user['username']}")
+    logger.info("User logged in: %s", user["username"])
     return AuthResponse(token=token, username=user["username"], role=user["role"])

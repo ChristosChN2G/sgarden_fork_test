@@ -28,11 +28,11 @@ def _parse_date(date_str: str, end_of_day: bool = False) -> datetime:
         if end_of_day:
             dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
         return dt
-    except ValueError:
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid date format: '{date_str}'. Use ISO format e.g. 2024-01-01",
-        )
+        ) from exc
 
 
 @router.get("/sales")

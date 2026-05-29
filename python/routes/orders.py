@@ -5,7 +5,7 @@ decrement), retrieval, status transitions through the allowed workflow
 (pending → confirmed → shipped → delivered / cancelled), item updates,
 and deletion.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from bson import ObjectId
@@ -105,7 +105,7 @@ async def create_order(request: OrderRequest, _current_user: dict = Depends(get_
     for item in request.items:
         await products_collection.update_one(
             {"_id": ObjectId(item.productId)},
-            {"$inc": {"stock": -item.quantity}, "$set": {"updatedAt": datetime.utcnow()}},
+            {"$inc": {"stock": -item.quantity}, "$set": {"updatedAt": datetime.now(timezone.utc)}},
         )
 
     price_map = {str(p["_id"]): p.get("price", 0) for p in products}
@@ -121,8 +121,8 @@ async def create_order(request: OrderRequest, _current_user: dict = Depends(get_
         "items": [item.model_dump() for item in request.items],
         "total": total,
         "status": "pending",
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc),
     }
     result = await orders_collection.insert_one(order_doc)
     order_doc["_id"] = result.inserted_id
@@ -190,7 +190,7 @@ async def update_order_status(
 
     await orders_collection.update_one(
         {"_id": ObjectId(order_id)},
-        {"$set": {"status": new_status, "updatedAt": datetime.utcnow()}},
+        {"$set": {"status": new_status, "updatedAt": datetime.now(timezone.utc)}},
     )
 
     order = await orders_collection.find_one({"_id": ObjectId(order_id)})
@@ -214,7 +214,7 @@ async def update_order(
     update_fields = {
         "items": [item.model_dump() for item in request.items],
         "total": total,
-        "updatedAt": datetime.utcnow(),
+        "updatedAt": datetime.now(timezone.utc),
     }
 
     result = await orders_collection.update_one(

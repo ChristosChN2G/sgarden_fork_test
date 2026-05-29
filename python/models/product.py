@@ -4,7 +4,7 @@ Defines the MongoDB document shape (ProductInDB), the request body for
 create/update operations (ProductRequest), and the API response shape
 (ProductResponse).
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -19,8 +19,8 @@ class ProductInDB(BaseModel):
     category: Optional[str] = None
     price: Optional[float] = None
     stock: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ProductRequest(BaseModel):

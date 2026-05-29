@@ -4,6 +4,7 @@ Initialises the FastAPI application, registers all route routers, configures
 CORS middleware, and manages the startup/shutdown lifecycle (index creation
 and database seeding).
 """
+import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -20,6 +21,9 @@ from routes.products import router as products_router
 from routes.users import router as users_router
 from seed import seed_data
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -28,14 +32,12 @@ async def lifespan(_app: FastAPI):
     On startup: initialises MongoDB indexes and seeds default data.
     On shutdown: logs the teardown event.
     """
-    # Startup
-    print("Starting SGarden API...")
+    logger.info("Starting SGarden API...")
     await init_indexes()
     await seed_data()
-    print("SGarden API started successfully")
+    logger.info("SGarden API started successfully")
     yield
-    # Shutdown
-    print("Shutting down SGarden API...")
+    logger.info("Shutting down SGarden API...")
 
 
 app = FastAPI(
@@ -70,4 +72,4 @@ async def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=settings.port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=settings.port, reload=settings.debug)  # nosec

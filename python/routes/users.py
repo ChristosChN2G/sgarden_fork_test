@@ -8,9 +8,11 @@ import hashlib
 import re
 import shlex
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+import logging
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,6 +22,8 @@ from database import users_collection
 from security.jwt_handler import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+logger = logging.getLogger(__name__)
 
 _VALID_ROLES = {"admin", "user"}
 
@@ -67,7 +71,7 @@ async def get_user_profile(user_id: str, _current_user: dict = Depends(get_curre
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    print(f"User profile accessed: {user.get('username')}")
+    logger.info("User profile accessed: %s", user.get("username"))
 
     return user_to_response(user)
 
@@ -84,7 +88,7 @@ async def search_users(query: str):
     async for user in cursor:
         users.append(user_to_response(user))
 
-    print(f"Search query executed: {query}")
+    logger.info("Search query: %s", query)
 
     return users
 
@@ -100,16 +104,18 @@ async def get_system_info(request: SystemInfoRequest):
 
     try:
         args = shlex.split(command)
-        result = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            args, shell=False, check=False, capture_output=True, text=True, timeout=10
+        )
 
-        print(f"Command executed: {command}")
+        logger.info("Command executed: %s", command)
 
         return {"output": result.stdout, "error": result.stderr}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Command failed: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/reports/download")
@@ -130,11 +136,13 @@ async def download_report(filename: str):
         )
 
     try:
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
         return {"filename": filename, "content": content}
-    except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
+        ) from exc
 
 
 @router.post("/hash")
@@ -205,7 +213,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     if result.deleted_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    print(f"User deleted: {user_id}")
+    logger.info("User deleted: %s", user_id)
     return {"message": "User deleted"}
 
 
@@ -238,11 +246,11 @@ async def change_role(
     new_role = request.role
     result = await users_collection.update_one(
         {"_id": ObjectId(user_id)},
-        {"$set": {"role": new_role, "updatedAt": datetime.utcnow()}},
+        {"$set": {"role": new_role, "updatedAt": datetime.now(timezone.utc)}},
     )
 
     if result.matched_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    print(f"Role changed for user {user_id} to {new_role}")
+    logger.info("Role changed for user %s to %s", user_id, new_role)
     return {"message": "Role updated", "role": new_role}
