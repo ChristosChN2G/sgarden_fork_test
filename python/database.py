@@ -1,3 +1,9 @@
+"""MongoDB client and collection singletons.
+
+Creates a single Motor async client on import and exposes named collection
+handles (users_collection, products_collection, orders_collection,
+settings_collection) for use across the application.
+"""
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from config import settings

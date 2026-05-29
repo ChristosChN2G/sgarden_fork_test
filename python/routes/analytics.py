@@ -1,3 +1,9 @@
+"""Sales analytics routes.
+
+Provides aggregated sales reporting over the orders collection, including
+total revenue, order count, revenue by month, and top products by quantity
+sold. Supports optional date-range filtering.
+"""
 from datetime import datetime
 from typing import Optional
 

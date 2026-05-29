@@ -1,3 +1,9 @@
+"""JWT token creation, decoding, and FastAPI authentication dependencies.
+
+Provides create_token for issuing signed HS256 JWTs, decode_token for
+validation, and FastAPI Depends-compatible helpers (get_current_user,
+get_optional_user) for protecting route handlers.
+"""
 from datetime import datetime, timedelta
 
 from bson import ObjectId
@@ -13,9 +19,6 @@ security = HTTPBearer(auto_error=False)
 SECRET_KEY = settings.server_secret
 ALGORITHM = "HS256"
 EXPIRATION_HOURS = settings.jwt_expiration_hours
-
-# CODE QUALITY ISSUE: unused variable
-token_cache = {}
 
 
 def create_token(user_id: str, username: str, role: str) -> str:
@@ -54,34 +57,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     Validates the token, looks up the user in the database, and returns the
     user document with the MongoDB _id converted to a string.
     Raises HTTP 401 if the token is missing, invalid, or the user no longer exists.
-    """
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-
-    payload = decode_token(credentials.credentials)
-    user_id = payload.get("sub")
-
-    user = await users_collection.find_one({"_id": ObjectId(user_id)})
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    user["_id"] = str(user["_id"])
-    return user
-
-
-async def get_current_user_deprecated(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    """Resolve the authenticated user from a Bearer token.
-
-    CODE QUALITY ISSUE: duplicate of get_current_user — kept for backward
-    compatibility but should be removed and callers migrated to get_current_user.
     """
     if credentials is None:
         raise HTTPException(

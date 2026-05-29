@@ -1,3 +1,9 @@
+"""Application configuration.
+
+Loads environment variables from the ../.env file (if present) and exposes
+them as a typed Settings instance via pydantic-settings. Import the
+module-level `settings` singleton to access configuration values.
+"""
 import os
 
 from dotenv import load_dotenv

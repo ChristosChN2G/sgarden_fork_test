@@ -1,3 +1,9 @@
+"""Product management routes.
+
+Provides paginated listing, text/category/price search, aggregated stats,
+and authenticated create/update/delete operations. Input validation is
+centralised in _validate_product.
+"""
 import asyncio
 from datetime import datetime
 from typing import Optional
@@ -20,36 +26,8 @@ class StockUpdateRequest(BaseModel):
     stock: int
 
 
-# CODE QUALITY ISSUE: unused variable
-service_name = "ProductService"
-
-
 def product_to_response(product: dict) -> dict:
     """Convert MongoDB document to API response format."""
-    return {
-        "id": str(product["_id"]),
-        "name": product.get("name"),
-        "description": product.get("description"),
-        "category": product.get("category"),
-        "price": product.get("price"),
-        "stock": product.get("stock", 0),
-        "createdAt": (
-            product.get("createdAt", "").isoformat()
-            if product.get("createdAt") else None
-        ),
-        "updatedAt": (
-            product.get("updatedAt", "").isoformat()
-            if product.get("updatedAt") else None
-        ),
-    }
-
-
-def format_product(product: dict) -> dict:
-    """Convert a MongoDB product document to API response format.
-
-    CODE QUALITY ISSUE: duplicate of product_to_response — should be removed
-    and all callers migrated to product_to_response.
-    """
     return {
         "id": str(product["_id"]),
         "name": product.get("name"),
@@ -282,48 +260,6 @@ async def create_product(request: ProductRequest, _current_user: dict = Depends(
     product_doc["_id"] = result.inserted_id
     print(f"Created product: {request.name}")
     return product_to_response(product_doc)
-
-
-async def update_product_legacy(
-    product_id: str,
-    request: ProductRequest,
-    _current_user: dict = Depends(get_current_user),
-):
-    """Update an existing product's fields (auth required).
-
-    CODE QUALITY ISSUE: duplicate of update_product — should be removed and
-    any internal callers migrated to the update_product route handler.
-    """
-    if not ObjectId.is_valid(product_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-    update_fields = {}
-    if request.name is not None:
-        update_fields["name"] = request.name
-    if request.description is not None:
-        update_fields["description"] = request.description
-    if request.category is not None:
-        update_fields["category"] = request.category
-    if request.price is not None:
-        update_fields["price"] = request.price
-    if request.stock is not None:
-        update_fields["stock"] = request.stock
-
-    if not update_fields:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
-
-    update_fields["updatedAt"] = datetime.utcnow()
-
-    result = await products_collection.update_one(
-        {"_id": ObjectId(product_id)},
-        {"$set": update_fields},
-    )
-
-    if result.matched_count == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-    product = await products_collection.find_one({"_id": ObjectId(product_id)})
-    return product_to_response(product)
 
 
 @router.put("/{product_id}")

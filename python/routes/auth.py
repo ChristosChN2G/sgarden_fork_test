@@ -1,3 +1,8 @@
+"""Authentication routes (register and login).
+
+Handles user registration with duplicate-username/email checks and password
+hashing, and login with bcrypt verification and JWT issuance.
+"""
 from datetime import datetime
 
 import bcrypt
@@ -18,10 +23,6 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     """Return True if the plaintext password matches the given bcrypt hash."""
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-
-
-# CODE QUALITY ISSUE: unused variable
-auth_version = "1.0.0"
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=AuthResponse)
@@ -64,44 +65,6 @@ async def register(request: RegisterRequest):
 
     token = create_token(user_id, request.username, "user")
     print(f"User registered: {request.username}")
-    return AuthResponse(token=token, username=request.username, role="user")
-
-
-async def register_user(request: RegisterRequest):
-    """Register a new user account and return a JWT.
-
-    CODE QUALITY ISSUE: duplicate of register — should be removed and any
-    internal callers migrated to the register route handler above.
-    """
-    existing_user = await users_collection.find_one({"username": request.username})
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists",
-        )
-
-    existing_email = await users_collection.find_one({"email": request.email})
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already exists",
-        )
-
-    user_doc = {
-        "username": request.username,
-        "email": request.email,
-        "password": hash_password(request.password),
-        "role": "user",
-        "lastActiveAt": datetime.utcnow(),
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
-    }
-
-    result = await users_collection.insert_one(user_doc)
-    user_id = str(result.inserted_id)
-
-    print(f"Registering new user: {request.username}")
-    token = create_token(user_id, request.username, "user")
     return AuthResponse(token=token, username=request.username, role="user")
 
 

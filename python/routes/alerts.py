@@ -1,3 +1,9 @@
+"""Low-stock alert routes.
+
+Provides endpoints to retrieve products whose stock is below a configurable
+threshold and to update that threshold. The threshold is persisted in the
+settings collection so it survives restarts.
+"""
 from fastapi import APIRouter
 from pydantic import BaseModel
 

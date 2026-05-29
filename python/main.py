@@ -1,3 +1,9 @@
+"""SGarden Inventory API — application entry point.
+
+Initialises the FastAPI application, registers all route routers, configures
+CORS middleware, and manages the startup/shutdown lifecycle (index creation
+and database seeding).
+"""
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -13,11 +19,6 @@ from routes.orders import router as orders_router
 from routes.products import router as products_router
 from routes.users import router as users_router
 from seed import seed_data
-
-# CODE QUALITY ISSUE: unused variable
-APP_NAME = "SGarden Inventory API"
-DEBUG_MODE = True
-unused_config = {"key": "value", "secret": "not-so-secret"}
 
 
 @asynccontextmanager
